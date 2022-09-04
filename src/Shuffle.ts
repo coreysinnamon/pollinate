@@ -1,14 +1,15 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { ShuffleEvent, SEType, AbstractShuffle } from "./AbstractShuffle.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
-import { Board, HexLocation } from "./Board.ts"
-import { game, Game, GameState } from "./Game.ts"
-import { AutoRope } from "./AutoRope.ts"
-import { trailTexture } from "./spriteLoader.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { ShuffleEvent, SEType, AbstractShuffle } from "./AbstractShuffle"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
+import { Board, HexLocation } from "./Board"
+import { game, Game, GameState } from "./Game"
+import { AutoRope } from "./AutoRope"
+import { trailTexture } from "./spriteLoader"
+import { swapTranslationTween } from "./animations"
 
 
-console.log("Loaded: Shuffle.ts");
+console.log("Loaded: Shuffle");
 
 class Shuffle extends AbstractShuffle {
 
@@ -20,8 +21,14 @@ class Shuffle extends AbstractShuffle {
 
     this.trail = new AutoRope(trailTexture);
     this.board.container.addChild(this.trail.container);
+    this.trail.container.zIndex = 1000;
     this.updateTrail();
+  }
 
+  destruct(){
+    super.destruct();
+    this.board.container.removeChild(this.trail.container);
+    this.trail.destruct();
   }
 
   encounterTile(coordinates : HexLocation){
@@ -29,9 +36,10 @@ class Shuffle extends AbstractShuffle {
     this.updateTrail();
   }
 
-  //startNextSwap(){
-  //  super.startNextSwap();
-  //}
+  startNextSwap(){
+    super.startNextSwap();
+    this.updateTrail();
+  }
 
   completeSwap(){
     super.completeSwap();
@@ -40,7 +48,10 @@ class Shuffle extends AbstractShuffle {
 
   tick(delta : number){
     super.tick(delta);
-    //this.tickTrail(delta);
+    this.trail.progressOnLastSegment(delta/Shuffle.shuffleDrawPeriod);
+    if (!this.waiting) {
+      this.trail.progressOnFirstSegment(delta / Shuffle.shufflePeriod);
+    }
   }
 
   //finish(){
@@ -51,16 +62,30 @@ class Shuffle extends AbstractShuffle {
     //console.log("Update trail...");
     switch(this.latestEvent.event){
       case (SEType.AddedToPath):
+        //console.log("Added to trail");
         const tileLocation = this.board.getTileCenterCoordinates(this.latestEvent.loc);
         this.trail.pushControlPoint(tileLocation);
         break;
-      case (SEType.RemovedFromPath):
+
+      case (SEType.Backtracked):
+        //console.log("Backtracked");
         this.trail.popControlPoint();
         break;
+
       case (SEType.StartedSwap):
-        this.trail.startNextSegment();
+        //console.log("Started Swap");
+        const s = this.swapper;
+        const t = this.board.getTile(this.latestEvent.loc);
+
+        // Start swap translation animation and remember the key for the animation, to clear it when the swap actually happens
+        s.sprite.zIndex = 599;
+        t.sprite.zIndex = 500;
+        s.tweenKeys.swapTranslation = s.animate(swapTranslationTween(Shuffle.shufflePeriod, s, t));
+        t.tweenKeys.swapTranslation = t.animate(swapTranslationTween(Shuffle.shufflePeriod, t, s));
         break;
+
       case (SEType.CompletedSwap):
+        //console.log("Completed Swap");
         this.trail.completeSegment();
         break;
     }

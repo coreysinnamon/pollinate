@@ -1,7 +1,9 @@
-import { PIXI } from "./index.ts"
-import { Walker } from "./Walker.ts"
+import { PIXI } from "./index"
+import { Walker } from "./Walker"
+import { debugBoxes, debugContainer } from "./makeStage"
 
-console.log("Loaded: AutoRope.ts");
+
+console.log("Loaded: AutoRope");
 
 /* Autorope.ts
  * This is used to draw a PIXI.SimpleRope (a textured graphic that 
@@ -19,22 +21,39 @@ class AutoRope{
   //static textureScale = 1/6;
 
   rope : PIXI.SimpleRope;
-  // ropePoints: The actual points that define the rope
+  // ropePoints: The points that define the rope (reverse order, so ropePoints[0] is the latest point to be added. This is for appearance.)
   ropePoints : PIXI.Point[];
-  // controlPoints: The points that define the control of the rope, from which ropePoints is determined
+  // ropePointsToAdd: The points that should be added to the end of the rope over time, giving the appearance of the rope growing gradually. (Reverse order, again).
+  ropePointsToAdd : PIXI.Point[];
+  // controlPoints: The points that control the shape of the rope, from which ropePoints is determined
   controlPoints : PIXI.Point[];
-  // segmentSize: This tracks pointers to the last point in ropePoints before each controlPoint.
-  //              Specifically, segmentSize[i] is the last point in ropePoints before controlPoints[i+1].
+  // segmentSize: This tracks the number of ropePoints between controlPoints.
+  //              Specifically, segmentSize[i] is the number of points in ropePoints
+  //              between controlPoints[i] and controlPoints[i+1].
   //              Used for adding/removing ropePoints when controlPoints changes.
   segmentSize : number[];
 
-  // segmentProgress: The number of ropePoints left in the current segment.
-  //                  Used to animate rope.
-  //                  It takes the value null if no segment is currently being moved through.
-  segmentProgress : number | null;
+  // firstSegmentProgess: The index in ropePoints of the first shown ropePoint. Used to animate rope.
+  firstSegmentProgress : number;
+  // lastSegmentProgress: The number of ropePoints so far added to the currently-being-drawn last segment.
+  //                      Used to animate rope.
+  lastSegmentProgress : number;
+  // firstSegment: The index of the segment at the start of the rope that is being animated (shrinking)
+  segmentBeingRemovedFrom: number;
+  // segmentBeingAddedTo: The index of the segment at the end of the rope that is being animated (growing)
+  segmentBeingAddedTo : number;
+  // texturePhase: We want to trick the texture to look like it's not frenetically moving as the ends of the rope get pushed around
+  texturePhase : number;
 
   // The rope texture.
   texture : PIXI.Texture;
+
+
+  // new params (under development):
+  ropeStart: number;
+  // ropeSize: number;
+  firstDisplayedPointIndex: number;
+
 
   // The walker decides where to put ropePoints through Walker.walk(). See Walker.ts.
   walker : Walker;
@@ -44,13 +63,43 @@ class AutoRope{
 
   constructor(texture : PIXI.Texture){
     this.ropePoints = [];
+    this.ropePointsToAdd = [];
     this.segmentSize = [];
     this.controlPoints = [];
-    this.segmentProgress = null;
+    this.firstSegmentProgress = 0;
+    this.lastSegmentProgress = 0;
+    this.segmentBeingRemovedFrom = 0;
+    this.segmentBeingAddedTo = 0;
     this.texture = texture;
+
+    this.firstDisplayedPointIndex = 0;
+    this.ropeStart = 0;
+    // this.ropeSize = 0;
+
     this.walker = new Walker();
 
     this.container = new PIXI.Container();
+  }
+
+  destruct(){
+    this.ropePoints = [];
+    this.ropePointsToAdd = [];
+    this.segmentSize = [];
+    this.controlPoints = [];
+    this.firstSegmentProgress = 0;
+    this.lastSegmentProgress = 0;
+    this.walker = null;
+  }
+
+  ropeLength(){
+    let len = 0;
+    let a = this.ropePoints[0];
+    for (let n = 0; n < this.ropePoints.length; n++) {
+      let b = this.ropePoints[n];
+      len += Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+      a = b;
+    }
+    return len;
   }
 
   // initializeRope //
@@ -59,16 +108,19 @@ class AutoRope{
   // some points before we can actually instantiate the rope.
   // We may also initialize the rope multiple times if ropePoints becomes empty inbetween.
   initializeRope(){
-    if (this.ropePoints.length == 0){
-      console.error("Tried to initialize empty rope.");
-      return;
-    }
     this.rope = new PIXI.SimpleRope(this.texture, this.ropePoints, AutoRope.textureScale);
     this.rope.roundPixels = true;
-    this.rope.zIndex = 1000;
-
     this.container.addChild(this.rope);
   }
+
+  // destroyRope //
+  destroyRope(){
+    debugBoxes.ropeStart.value += "   X";
+
+    this.container.removeChild(this.rope);
+    this.rope = null;
+  }
+
 
   // segmentVec //
   // Computes vector between controlPoints[segNumber-1] and controlPoints[segNumber].
@@ -97,14 +149,9 @@ class AutoRope{
     const segVec = this.segmentVec(this.controlPoints.length-1);
     const ptsToAdd = this.walker.walk(segVec);
     for (let n=0; n < ptsToAdd.length; n++){
-      this.ropePoints.push(ptsToAdd[n]);
+      this.ropePointsToAdd.push(ptsToAdd[n]);
     }
     this.segmentSize.push(ptsToAdd.length);
-
-    if (this.controlPoints.length == 2){
-      //Initialize the rope now that there are points to work with
-      this.initializeRope();
-    }
   }
 
   // shiftControlPoint //
@@ -119,22 +166,32 @@ class AutoRope{
       this.controlPoints.shift();
       this.segmentSize.shift();
       // Delete the rope and clear the ropePoints
-      this.container.removeChild(this.rope);
-      this.rope = null;
-      while (this.ropePoints.length > 0) this.ropePoints.shift();
+      debugBoxes.ropeStart.value = "Delete1";
+
+      this.destroyRope();
+      while (this.ropePoints.length > 0) this.ropePoints.pop();
+      while (this.ropePointsToAdd.length > 0) this.ropePointsToAdd.pop();
       
       // instruct walker to forget about its state at the deleted control point
       this.walker.shiftHistory();
+      // reset segment animation variables
+      this.firstSegmentProgress = 0;
+      this.lastSegmentProgress = 0;
+      this.segmentBeingRemovedFrom = 0;
+      this.segmentBeingAddedTo = 0;
 
       return;
     }
-    const ptsToRemove = this.segmentSize[0];
+    // const ptsToRemove = this.segmentSize[0] - Math.ceil(this.segmentSize[0]*this.frontProgress);
 
     this.controlPoints.shift();
-    this.segmentSize.shift();
-    for (let n = 0; n < ptsToRemove; n++){
-      this.ropePoints.shift();
-    }
+    // this.segmentSize.shift();
+    // this.segmentBeingAddedTo -= 1;
+
+    // let n = 0;
+    // while(this.ropePoints.length > 0 && n++ < ptsToRemove) this.ropePoints.shift();
+    // while(this.ropePointsToAdd.length > 0 && n++ < ptsToRemove) this.ropePointsToAdd.shift();
+    // this.frontProgress = 0;
   }
 
   // popControlPoint //
@@ -149,9 +206,18 @@ class AutoRope{
       this.controlPoints.pop();
       this.segmentSize.pop();
       // Delete the rope and clear the ropePoints
-      this.container.removeChild(this.rope);
-      this.rope = null;
-      while (this.ropePoints.length > 0) this.ropePoints.shift();
+      debugBoxes.ropeStart.value = "Delete2";
+      this.destroyRope();
+      while (this.ropePoints.length > 0) this.ropePoints.pop();
+      while (this.ropePointsToAdd.length > 0) this.ropePointsToAdd.pop();
+
+      this.walker.backstep();
+
+      // reset segment animation variables
+      this.firstSegmentProgress = 0;
+      this.lastSegmentProgress = 0;
+      this.segmentBeingRemovedFrom = 0;
+      this.segmentBeingAddedTo = 0;
       return;
     }
 
@@ -159,28 +225,92 @@ class AutoRope{
 
     this.controlPoints.pop();
     this.segmentSize.pop();
-    for (let n = 0; n < ptsToRemove; n++){
-      this.ropePoints.pop();
-    }
-
+    
+    let n = 0;
+    while(this.ropePointsToAdd.length > 0 && n++ < ptsToRemove) this.ropePointsToAdd.pop();
+    while(this.ropePoints.length > 0 && n++ < ptsToRemove) this.ropePoints.pop();
+    
     this.walker.backstep();
-  }
-
-  startNextSegment(){
-    this.segmentProgress = 0;
   }
 
   completeSegment(){
     this.shiftControlPoint();
-    this.segmentProgress = null;
   }
 
-
-  tick(delta : number){
-    if (this.segmentProgress == null){
-      // Not moving through any transition
+  progressOnFirstSegment(dp : number){
+    if (this.segmentBeingRemovedFrom >= this.segmentSize.length) {
+      this.segmentBeingRemovedFrom = this.segmentSize.length;
+      this.firstSegmentProgress = 0;
+      return;
     }
 
+    debugBoxes.ropeSize.value = "" + this.segmentBeingRemovedFrom;
+    const oldProgress = this.firstSegmentProgress;
+    let leftover = 0;
+    if (this.firstSegmentProgress + dp * this.segmentSize[this.segmentBeingRemovedFrom] > this.segmentSize[this.segmentBeingRemovedFrom]){
+      leftover = dp - (1 - this.firstSegmentProgress/this.segmentSize[this.segmentBeingRemovedFrom]);
+      this.firstSegmentProgress = this.segmentSize[this.segmentBeingRemovedFrom];
+    }else{
+      this.firstSegmentProgress = this.firstSegmentProgress + dp * this.segmentSize[this.segmentBeingRemovedFrom]
+    }
+
+    const ptsToRemove = Math.ceil(this.firstSegmentProgress) - Math.ceil(oldProgress);
+
+    for(let i = 0; i < ptsToRemove; i++){
+      this.ropePoints.shift();
+    }
+
+    // // this.rope.start = this.ropeStart;
+    // this.firstDisplayedPointIndex += ptsToHide;
+
+    // const ptsToHide = Math.ceil(this.firstSegmentProgress) - Math.ceil(oldProgress);
+  
+    // let a = this.ropePoints[this.firstDisplayedPointIndex];
+    // for (let n = this.firstDisplayedPointIndex + 1; n <= this.firstDisplayedPointIndex + ptsToHide; n++) {
+    //   if (n >= this.ropePoints.length)
+    //     break;
+    //   let b = this.ropePoints[n];
+    //   this.ropeStart += Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
+    //   a = b;
+    // }
+    // //this.rope.start = this.ropeStart;
+    // this.firstDisplayedPointIndex += ptsToHide;
+
+    if (leftover > 0){
+      this.segmentBeingRemovedFrom++;
+      this.firstSegmentProgress = 0;
+      this.progressOnFirstSegment(leftover);
+    }
+  }
+
+  // This is the only place that points get added to ropePoints
+  progressOnLastSegment(dp : number){
+    if (this.segmentBeingAddedTo >= this.segmentSize.length) {
+      this.segmentBeingAddedTo = this.segmentSize.length;
+      this.lastSegmentProgress = 0;
+    }
+
+    // Is the rope currently uninitialized? We may need to initialize the rope, if so.
+    const ropeWasEmpty = (this.ropePoints.length < 2);
+
+    const segNum = this.segmentBeingAddedTo;
+    if(segNum >= this.segmentSize.length) return;
+    const numberAlreadyAdded = this.lastSegmentProgress;
+    const leftover = (this.lastSegmentProgress/this.segmentSize[segNum] + dp) - 1;
+
+    this.lastSegmentProgress = Math.min(this.lastSegmentProgress + dp*this.segmentSize[segNum], this.segmentSize[segNum]);
+    const ptsToAdd = Math.ceil(this.lastSegmentProgress) - Math.ceil(numberAlreadyAdded);
+    for (let n = 0; n < ptsToAdd; n++){
+      if (this.ropePointsToAdd.length >  0) this.ropePoints.push(this.ropePointsToAdd.shift());
+    }
+    if(ropeWasEmpty && this.ropePoints.length >= 2){
+      this.initializeRope();
+    }
+    if (leftover >= 0){
+      this.segmentBeingAddedTo += 1;
+      this.lastSegmentProgress = 0;
+      this.progressOnLastSegment(leftover);
+    }
   }
 }
 

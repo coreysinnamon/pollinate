@@ -1,11 +1,12 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
-import { Board, HexLocation } from "./Board.ts"
-import { game, Game, GameState } from "./Game.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
+import { Board, HexLocation } from "./Board"
+import { game, Game, GameState } from "./Game"
+import { wiggleTween} from "./animations"
 
 
-console.log("Loaded: AbstractShuffle.ts");
+console.log("Loaded: AbstractShuffle");
 
 /* AbstractShuffle.ts
  *
@@ -22,7 +23,7 @@ console.log("Loaded: AbstractShuffle.ts");
 enum SEType {
   None,
   AddedToPath,
-  RemovedFromPath,
+  Backtracked,
   StartedSwap,
   CompletedSwap
 }
@@ -31,7 +32,9 @@ type ShuffleEvent = { event : SEType, loc : HexLocation | null };
 
 class AbstractShuffle {
   // shufflePeriod is the length (in frames) of a single swap
-  static shufflePeriod : number = 50;
+  static shufflePeriod : number = 30;
+  // shuffleDrawPeriod is the time (in frames) to draw an edge between hexes
+  static shuffleDrawPeriod: number = 10;
 
   // board is the Board to which the shuffle belongs
   board : Board;
@@ -64,7 +67,26 @@ class AbstractShuffle {
     this.completed = false;
     this.latestEvent = { event : SEType.AddedToPath, loc : this.getLeaderLocation() };
 
-    this.swapper.setOwner(this);
+    this.swapper.setOwnerShuffle(this);
+    // Start wiggling; record the key for the tween
+    this.swapper.tweenKeys.swapWiggle = this.swapper.animate(wiggleTween(35, 0.2, 3));
+  }
+
+  destruct(){
+    let x = this.swapper.location;
+    let y;
+    for (let n = 0; n < this.path.length-1; n++){
+      y = this.path[n]
+      this.board.releaseEdge(x, y);
+      x = y;
+    }
+
+    for (let n = 0; n < this.path.length; n++){
+      const t = this.board.getTile(this.path[n]);
+      t.releaseOwnerShuffle(this);
+    }
+    this.swapper.releaseOwnerShuffle(this);
+    this.swapper.clearAnimation(this.swapper.tweenKeys.swapWiggle);
   }
 
   // getLeaderLocation //
@@ -77,6 +99,31 @@ class AbstractShuffle {
     }
   }
 
+  // containsLocation //
+  // Determines whether the location is in the path (at least once)
+  // A tile should be owned by this shuffle <=> containsLocation returns true
+  containsLocation(loc : HexLocation){
+    if (loc.i == this.swapper.location.i && loc.j == this.swapper.location.j){
+      return true;
+    }
+    for (let n = 0; n < this.path.length; n++){
+      if (this.path[n].i == loc.i && this.path[n].j == loc.j){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // popLeader //
+  // Remove the leader from the path
+  popLeader(){
+    if (this.path.length == 0){
+      return;
+    }
+    const leader = this.getLeaderLocation();
+    this.path.pop();
+  }
+
   // encounterTile //
   // Called when the user mouses over a new tile.
   // If it's adjacent to the leader (and is not the tile before that), it adds the location the path.
@@ -85,25 +132,34 @@ class AbstractShuffle {
   encounterTile(loc : HexLocation){
     const tile = this.board.getTile(loc);
     const leader = this.getLeaderLocation();
-    if(tile != null && HexTile.adjacentCoords(loc, leader)){
+    if(tile != null && Board.adjacentCoords(loc, leader)){
+
+      // Is tile the last tile in the path before the leader?
+      // If so, we should backtrack that last edge.
+      // But be careful not to backtrack on an edge that is being traversed!
+      // We require path.length > 2 to avoid this.
       if ( this.path.length > 2
            && loc.i == this.path[this.path.length-2].i
            && loc.j == this.path[this.path.length-2].j ){
-        // Same as last tile before leader AND it's not currently being swapped with swapper
-        // (because path.length > 2).
         // Remove leader instead of adding to path.
-        this.path.pop();
-        this.latestEvent.event = SEType.RemovedFromPath;
+        this.popLeader();
+        // Release the last edge that the leader was involved in
+        this.board.releaseEdge(loc, leader);
+
+        this.latestEvent.event = SEType.Backtracked;
         this.latestEvent.loc = loc;
         //console.log("Removed (" + leader.i.toString() + ", " + leader.j.toString() + ")");
       }else{
-        // New tile. Add it.
-        this.path.push({ i: loc.i, j : loc.j });
-        this.startNextSwap();
-        //console.log("Added (" + coordinates.i.toString() + ", " + coordinates.j.toString() + ")");
+        // New tile. Add it unless it this edge from leader to tile is already used by some shufle.
+        if(this.board.edgeIsFree(leader, loc)){
+          this.path.push({ i: loc.i, j : loc.j });
+          this.board.claimEdge(leader, loc);
+          //this.startNextSwap();
+          //console.log("Added (" + coordinates.i.toString() + ", " + coordinates.j.toString() + ")");
   
-        this.latestEvent.event = SEType.AddedToPath;
-        this.latestEvent.loc = loc;
+          this.latestEvent.event = SEType.AddedToPath;
+          this.latestEvent.loc = loc;
+        }
       }
     }
   }
@@ -115,15 +171,16 @@ class AbstractShuffle {
       return;
     }
     if (this.waiting){
-      // Figure out if it can proceed: Check if next tile is unowned.
+      // Figure out if it can proceed
       const tile = this.board.getTile(this.path[0]);
-      if (tile.isUnowned()){
-        tile.setOwner(this);
+      if (tile.isReadyToSwap()){
+        tile.setOwnerShuffle(this);
+
         this.waiting = false;
         this.shuffleProgress = 0;
-        
+
         this.latestEvent.event = SEType.StartedSwap;
-        this.latestEvent.loc = this.path[this.path.length - 1];
+        this.latestEvent.loc = this.path[0];
       }
     }
   }
@@ -134,19 +191,23 @@ class AbstractShuffle {
     if (this.path.length == 0){
       console.error("AbstractShuffle.ts: Path empty during completeSwap!");
     }
-    this.latestEvent.event = SEType.CompletedSwap;
-    this.latestEvent.loc = this.path[this.path.length - 1];
 
     const tile = this.board.getTile(this.path.shift());
+    tile.releaseOwnerShuffle(this);
+
+    this.board.releaseEdge(this.swapper.location, tile.location);
     this.board.swapTiles(this.swapper, tile);
-    tile.resetOwner();
-    this.shuffleProgress = -1;
+
+    this.shuffleProgress = 0;
     this.waiting = true;
-    this.startNextSwap();
+    //this.startNextSwap();
 
     if (this.isFinished()){
-      this.swapper.resetOwner();
+      this.destruct();
     }
+
+    this.latestEvent.event = SEType.CompletedSwap;
+    this.latestEvent.loc = this.path[this.path.length - 1];
   }
 
   // tick //
@@ -161,15 +222,22 @@ class AbstractShuffle {
     // Start next swap if possible
     this.startNextSwap();
 
-    // If we get here, we're in the middle of a transition.
-    this.shuffleProgress += delta;
+    if (!this.waiting){
+      // If we get here, we're in the middle of a transition.
+      this.shuffleProgress += delta;
+    }
   }
+
 
   // complete //
   // Called when the user stops building the path.
   // Indicates that no more tiles will be added to the path.
   complete(){
     this.completed = true;
+    if (this.isFinished()){
+      this.destruct();
+    }
+
   }
 
   // isFinished //

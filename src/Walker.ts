@@ -1,6 +1,6 @@
-import { PIXI } from "./index.ts"
+import { PIXI } from "./index"
 
-console.log("Loaded: Walker.ts");
+console.log("Loaded: Walker");
 
 /* Walker.ts
  * A walker is used by AutoRope (see AutoRope.ts) to decide where to place ropePoints.
@@ -58,8 +58,8 @@ function getVectorFromAngle(theta : number){
 
 class Walker{
   // Parameters used in moveLeader
-  static followerSlowStep = 30;
-  static slowdtheta = Math.PI/8;
+  static followerSlowStep = 8;
+  static slowdtheta = Math.PI/8 * Walker.followerSlowStep/25;
   static followerFastStep = Walker.followerSlowStep/3;
   static fastdtheta = Walker.slowdtheta;
   static maxDistance = 400;

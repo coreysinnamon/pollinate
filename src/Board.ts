@@ -1,8 +1,9 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
-import { AbstractBoard, HexLocation } from "./AbstractBoard.ts"
-import { game, Game, GameState } from "./Game.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
+import { AbstractBoard, HexLocation } from "./AbstractBoard"
+import { game, Game, GameState } from "./Game"
+import { swapTranslationTween } from "./animations"
 
 /* Board.ts
  * 
@@ -21,7 +22,7 @@ import { game, Game, GameState } from "./Game.ts"
  *    in the hexagonal tiling of the board. See AbstractBoard for an explanation of the location system.
  */
 
-console.log("Loaded: Board.ts");
+console.log("Loaded: Board");
 
 class Board extends AbstractBoard {
   // x, y: The top right corner of the area given to draw the board.
@@ -38,16 +39,28 @@ class Board extends AbstractBoard {
   // container : The container to hold the sprites etc.
   container : PIXI.Container;
 
+  // Tiles undergoing animation.
+  activeTiles : HexTile[];
+
   // debugContainer : For displaying whatever visuals are needed for debugging.
   debugContainer : PIXI.Container;
 
   constructor(x : number = 0, y : number = 0, width : number, height : number, gridWidth : number, gridHeight : number){
     super(gridWidth, gridHeight)
+
+    this.activeTiles = [];
     
     this.x = x;
     this.y = y;
+
+    for (let i = 0; i < this.gridWidth; i++){
+      for (let j = 0; j < this.gridHeight; j++){
+        this.grid[i][j].board = this;
+      }
+    }
     
     this.container = new PIXI.Container();
+    this.container.sortableChildren = true;
 
     this.resize(width, height);
 
@@ -61,10 +74,9 @@ class Board extends AbstractBoard {
     for (let i = 0; i < this.gridWidth; i++){
       for (let j = 0; j < this.gridHeight; j++){
         if (this.grid[i][j] != null){
-          const location = this.getTileCenterCoordinates(i, j);
-          this.grid[i][j].reposition(location.x, location.y);
+          const coords = this.getTileCenterCoordinates(i, j);
+          this.grid[i][j].reposition(coords.x, coords.y);
           this.grid[i][j].updateSprite();
-
           this.container.addChild(this.grid[i][j].sprite);
         }
       }
@@ -76,16 +88,16 @@ class Board extends AbstractBoard {
   swapTiles(s : HexTile, t : HexTile){
     super.swapTiles(s, t);
     let tmp : number;
-    tmp = s.sprite.x;
-    s.sprite.x = t.sprite.x;
-    t.sprite.x = tmp;
+    tmp = s.x;
+    s.x = t.x;
+    t.x = tmp;
     
-    tmp = s.sprite.y;
-    s.sprite.y = t.sprite.y;
-    t.sprite.y = tmp;
+    tmp = s.y;
+    s.y = t.y;
+    t.y = tmp;
 
-    s.updateSprite();
-    t.updateSprite();
+    s.clearAnimation(s.tweenKeys.swapTranslation);
+    t.clearAnimation(t.tweenKeys.swapTranslation);
   }
 
   // screenToBoardspace //

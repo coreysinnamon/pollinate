@@ -1,9 +1,9 @@
-import { PIXI } from "./index.ts"
-import { game, GameState, AssetsToLoad } from "./Game.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
+import { PIXI } from "./index"
+import { game, GameState, AssetsToLoad } from "./Game"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
 
-console.log("Loaded: spriteLoader.ts");
+console.log("Loaded: spriteLoader");
 
 /* spriteLoader.ts
  * Loads sprites and puts them in appropriate structures.

@@ -1,22 +1,23 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
-import { Board } from "./Board.ts"
-import { Shuffle } from "./Shuffle.ts"
-import { game, Game, GameState } from "./Game.ts"
-import { createBoard } from "./testBoard.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
+import { Board } from "./Board"
+import { Shuffle } from "./Shuffle"
+import { game, Game, GameState } from "./Game"
+import { createBoard } from "./testBoard"
 
 
-console.log("Loaded: GameplayManager.ts");
+console.log("Loaded: GameplayManager");
 
 /* GameplayManager.ts
  * The gameplay manager (GM) looks at user input and triggers game events.
  * Its job is essentially to manage listeners and keep track of shuffles and clusters.
  * (Clusters not yet implemented.)
+ * It also does most of the tick delegation.
  */
 
 class GameplayManager {
-  static MOUSE_DELAY : number = 6; //sixtieths of a second between actions in MouseMove.
+  static MOUSE_DELAY : number = 1; //sixtieths of a second between actions in MouseMove.
 
   // The game board
   board : Board;
@@ -24,7 +25,6 @@ class GameplayManager {
   activeShuffle : Shuffle | null;
   // Other shuffles that are completed, but are still shuffling.
   inactiveShuffles : Shuffle[];
-
 
   // Debugging info
   db : any;
@@ -63,8 +63,14 @@ class GameplayManager {
   }
 
   // tick //
-  // Tick the shuffles.
   tick(delta : number){
+    // Tick the tiles
+    for (let n = 0; n < this.board.activeTiles.length; n++){
+      //console.log(n);
+      this.board.activeTiles[n].tick(delta);
+    }
+
+    // Tick the shuffles.
     if (this.activeShuffle !== null){
       this.activeShuffle.tick(delta);
     }
@@ -115,8 +121,8 @@ class GameplayManager {
   // startShuffle //
   // Create a new shuffle for activeShuffle, assuming there is no current active shuffle.
   startShuffle(){
-    const leader = this.getCurrentTile();
-    if (leader !== null && leader.isUnowned()){
+    const currentTile = this.getCurrentTile();
+    if (currentTile !== null && currentTile.isReadyToSwap){
       // Create a new shuffle with leader
       if (this.activeShuffle !== null){
         // This shouldn't be possible.
@@ -124,7 +130,10 @@ class GameplayManager {
         console.error("GM.startShuffle: activeShuffle is replaced!");
         this.inactiveShuffles.push(this.activeShuffle);
       }
-      this.activeShuffle = new Shuffle(leader);
+
+      if (!currentTile.hasOwner()){
+        this.activeShuffle = new Shuffle(currentTile);
+      }
     }
   }
 

@@ -1,8 +1,8 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
 
-console.log("Loaded: AbstractBoard.ts");
+console.log("Loaded: AbstractBoard");
 
 /* AbstractBoard.ts
  * Implements the AbstractBoard class, which consists of a grid in a hexagonal tiling of the plane.
@@ -26,9 +26,21 @@ console.log("Loaded: AbstractBoard.ts");
  type HexLocation = { i : number, j : number };
 
 class AbstractBoard {
+
+  // Determines whether two given HexLocations are adjacent as hexagons
+  static adjacentCoords(s : HexLocation, t : HexLocation){
+    // This is written concisely, not to be readable. Rewrite it if you like.
+    const di = (1-2*(s.j % 2))*(s.i - t.i);
+    const dj = s.j - t.j;
+    return ((dj == 0 && di == -1) || (dj == -1 && di == 0) || (dj == 1 && di == 0) || (di == 1 && Math.abs(dj) <= 1));
+  }
+
   gridWidth : number;
   gridHeight : number;
   grid : HexTile[][];
+
+  // Keep a directory (bit string) of edges in the board currently used by some shuffle
+  edgesUsedByShuffles : boolean[];
 
   constructor(gridWidth : number, gridHeight : number) {
     this.gridWidth = gridWidth;
@@ -41,6 +53,8 @@ class AbstractBoard {
         this.grid[i][j] = new HexTile(i, j);
       }
     }
+
+    this.edgesUsedByShuffles = new Array(3*this.gridHeight*this.gridWidth);
   }
 
   // getTile //
@@ -69,6 +83,68 @@ class AbstractBoard {
     s.location.j = t.location.j;
     t.location.j = tmp;
   }
+
+  edgeNumber(s : HexLocation, t: HexLocation){
+    // swap s and t, if necessary, to order them lexicographically by (j,i)
+    if (s.j > t.j || (s.j == t.j && s.i > t.i)){
+      const swap = s;
+      s = t;
+      t = swap;
+    }
+    
+    const tileIndex = 3*(s.j*this.gridWidth + s.i)
+
+    // offset = 0, 1, or 2
+    //    X   X
+    //  X   s   0
+    //    1   2 
+
+    const offset = (t.j - s.j) * (t.i - s.i - (s.j % 2) + 2);
+    return tileIndex + offset;
+  }
+
+  edgeIsFree(s : HexLocation, t: HexLocation){
+    return !this.edgesUsedByShuffles[this.edgeNumber(s,t)];
+  }
+
+  claimEdge(s : HexLocation, t: HexLocation){
+    this.edgesUsedByShuffles[this.edgeNumber(s,t)] = true;
+  }
+
+  releaseEdge(s : HexLocation, t: HexLocation){
+    this.edgesUsedByShuffles[this.edgeNumber(s,t)] = false;
+  }
+
+  locationIsFree(s : HexLocation){
+    const adjacentLocs = [];
+    if (s.j % 2 == 0){
+      adjacentLocs.push({i : s.i - 1, j : s.j});
+      adjacentLocs.push({i : s.i + 1, j : s.j});
+      adjacentLocs.push({i : s.i-1, j : s.j-1});
+      adjacentLocs.push({i : s.i, j : s.j-1});
+      adjacentLocs.push({i : s.i-1, j : s.j+1});
+      adjacentLocs.push({i : s.i, j : s.j+1});
+    }else{
+      adjacentLocs.push({i : s.i - 1, j : s.j});
+      adjacentLocs.push({i : s.i + 1, j : s.j});
+      adjacentLocs.push({i : s.i-1, j : s.j-1});
+      adjacentLocs.push({i : s.i, j : s.j-1});
+      adjacentLocs.push({i : s.i-1, j : s.j+1});
+      adjacentLocs.push({i : s.i, j : s.j+1});
+    }
+    for (let n = 0; n < adjacentLocs.length; n++){
+      const t = adjacentLocs[n];
+      if ( t.i >= 0 && t.i < this.gridWidth
+        && t.j >= 0 && t.j < this.gridHeight ){
+        if (this.edgesUsedByShuffles[this.edgeNumber(s,t)]){
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+
 
   // printShape //
   // Draw the shape of the board with H's.

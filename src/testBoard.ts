@@ -1,12 +1,12 @@
-import { PIXI } from "./index.ts"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage.ts"
-import { HexTile, TileType, TileColor, TileState } from "./HexTile.ts"
-import { AbstractBoard } from "./AbstractBoard.ts"
-import { game, Game, GameState } from "./Game.ts"
-import { Board } from "./Board.ts"
+import { PIXI } from "./index"
+import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
+import { HexTile, TileType, TileColor, TileState } from "./HexTile"
+import { AbstractBoard } from "./AbstractBoard"
+import { game, Game, GameState } from "./Game"
+import { Board } from "./Board"
 
 
-console.log("Loaded: testBoard.ts");
+console.log("Loaded: testBoard");
 
 // Temporary: For debugging.
 
