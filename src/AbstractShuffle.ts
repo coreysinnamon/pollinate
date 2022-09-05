@@ -69,7 +69,7 @@ class AbstractShuffle {
 
     this.swapper.setOwnerShuffle(this);
     // Start wiggling; record the key for the tween
-    this.swapper.tweenKeys.swapWiggle = this.swapper.animate(wiggleTween(35, 0.2, 3));
+    this.swapper.animate("swapWiggle", wiggleTween(35, 0.2, 3));
   }
 
   destruct(){
@@ -86,7 +86,7 @@ class AbstractShuffle {
       t.releaseOwnerShuffle(this);
     }
     this.swapper.releaseOwnerShuffle(this);
-    this.swapper.clearAnimation(this.swapper.tweenKeys.swapWiggle);
+    this.swapper.stopAnimation("swapWiggle");
   }
 
   // getLeaderLocation //

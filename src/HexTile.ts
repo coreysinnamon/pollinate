@@ -5,7 +5,7 @@ import { Board } from "./Board"
 import { AbstractShuffle } from "./AbstractShuffle"
 import { hexTextures } from "./spriteLoader"
 import { HexLocation } from "./Board"
-import { Coordinates, Tween, TileAnimation, wiggleTween } from "./animations"
+import { Coordinates, Displacement, Tween, wiggleTween } from "./animations"
 
 console.log("Loaded: HexTile");
 
@@ -89,10 +89,10 @@ class HexTile {
   width: number;
   height: number;
 
-  anim: TileAnimation;
+  anim: Set<Tween>;
 
-  // Tween keys, so that they can be deleted where appropriate
-  tweenKeys: { [id: string]: number };
+  // Tweens, so that they can be deleted where appropriate
+  tweens: { [id: string]: Tween };
 
   sprite: PIXI.Sprite;
 
@@ -104,8 +104,7 @@ class HexTile {
     this.location = { i: i, j: j };
     this.shuffle = null;
 
-    this.anim = new TileAnimation();
-    this.tweenKeys = { swapTranslation: 0, swapWiggle: 0 };
+    this.tweens = { swapTranslation: null, swapWiggle: null };
     this.sprite = new PIXI.Sprite();
     this.sprite.anchor.set(0.5, 0.5);
 
@@ -173,42 +172,30 @@ class HexTile {
   }
 
   tick(delta: number) {
-    //console.log(this.toString());
     let x = this.x;
     let y = this.y;
     let theta = this.theta;
     let xscale = this.xscale;
     let yscale = this.yscale;
 
-    for (const [key, tween] of Object.entries(this.anim.animations)) {
-      if (tween.active){
-        tween.progress += delta;
-        if (tween.progress >= tween.period) {
-          if (tween.loop){
-            tween.progress = tween.progress % tween.period;
-          }else{
-            tween.progress = tween.period;
-            tween.active = false;
-          }
-        }
-        
-        if (tween.translate !== null){
-          const pos = tween.translate(tween.progress / tween.period);
-          x += pos.x;
-          y += pos.y;
-        }
-
-        if (tween.rotate !== null) {
-          theta += tween.rotate(tween.progress / tween.period);
-        }
-        
-        if (tween.stretch !== null) {
-          const stretch = tween.stretch(tween.progress / tween.period);
-          xscale += stretch.x;
-          yscale += stretch.y;
-        }
+    for (const [key, tween] of Object.entries(this.tweens)) {
+      if (tween == null){
+        continue;
       }
+      if (tween.isDead()){
+        this.removeAnimation(key);
+      }
+
+      tween.tick(delta)
+      x += tween.displacement.translation.x;
+      y += tween.displacement.translation.y;
+      
+      theta += tween.displacement.rotation;
+        
+      xscale += tween.displacement.stretchFactor.x;
+      yscale += tween.displacement.stretchFactor.y;
     }
+
     this.sprite.x = x;
     this.sprite.y = y;
     this.sprite.rotation = theta;
@@ -216,22 +203,26 @@ class HexTile {
     this.sprite.scale.y = this.yscale;
   }
 
-  animate(t: Tween) {
-    // Store and return the key, so it can be deleted later
-    const key = this.anim.addTween(t);
+  animate(key: string, t: Tween) {
+    this.tweens[key] = t;
     if (!this.board.activeTiles.includes(this)) {
       this.board.activeTiles.push(this);
     }
-    return key;
   }
 
-  clearAnimation(key: number | null) {
-    if (key !== null && key in this.anim.animations){
-      delete(this.anim.animations[key]);
-    }else{
-      for (const k in this.anim.animations){
-        delete(this.anim.animations[k]);
+  stopAnimation(key: string) {
+    if (key in this.tweens){
+      this.tweens[key].stop();
+      if(this.tweens[key].isDead()){
+        this.removeAnimation(key);
       }
+    }
+  }
+
+  removeAnimation(key: string) {
+    if (key in this.tweens) {
+      this.tweens[key].kill();
+      delete this.tweens[key];
     }
   }
 }

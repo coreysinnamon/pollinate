@@ -80,8 +80,8 @@ class Shuffle extends AbstractShuffle {
         // Start swap translation animation and remember the key for the animation, to clear it when the swap actually happens
         s.sprite.zIndex = 599;
         t.sprite.zIndex = 500;
-        s.tweenKeys.swapTranslation = s.animate(swapTranslationTween(Shuffle.shufflePeriod, s, t));
-        t.tweenKeys.swapTranslation = t.animate(swapTranslationTween(Shuffle.shufflePeriod, t, s));
+        s.animate("swapTranslation", swapTranslationTween(Shuffle.shufflePeriod, s, t));
+        t.animate("swapTranslation", swapTranslationTween(Shuffle.shufflePeriod, t, s));
         break;
 
       case (SEType.CompletedSwap):

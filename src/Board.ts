@@ -96,8 +96,8 @@ class Board extends AbstractBoard {
     s.y = t.y;
     t.y = tmp;
 
-    s.clearAnimation(s.tweenKeys.swapTranslation);
-    t.clearAnimation(t.tweenKeys.swapTranslation);
+    s.stopAnimation("swapTranslation");
+    t.stopAnimation("swapTranslation");
   }
 
   // screenToBoardspace //
