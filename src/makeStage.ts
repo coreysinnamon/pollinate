@@ -1,5 +1,4 @@
-import { PIXI } from "./index"
-
+import * as PIXI from 'pixi.js'
 
 console.log("Loaded: makeStage");
 
@@ -7,10 +6,33 @@ console.log("Loaded: makeStage");
  * Sets up the stage and other basic stuff.
  */
 
+
+/* Some utility functions for making a table. */
+class EasyTable{
+  table: HTMLElement;
+  constructor(){
+    this.table = document.createElement('table');
+  }
+  startNewRow(){
+    this.table.appendChild(document.createElement('tr'));
+    return this;
+  }
+  addCell(content: HTMLElement){
+    const td = document.createElement('td');
+    td.appendChild(content);
+    content.style.width = '100%';
+    this.table.lastChild.appendChild(td);
+    return this;
+  }
+}
+
+
+
 //Initialize the stage
-const app = new PIXI.Application({
-    width: window.innerWidth, height: window.innerHeight-100, backgroundColor: 0x115599, resolution: window.devicePixelRatio || 1
+const app = new PIXI.Application<HTMLCanvasElement>({
+    width: window.innerWidth, height: window.innerHeight-100, backgroundColor: 0x115599 
   });
+  //, resolution: window.devicePixelRatio || 1 // CAUSES PROBLEMS
 document.body.appendChild(app.view);
 
 // Set style properties, making the canvas fill the entire page exactly
@@ -32,26 +54,21 @@ const debugBoxes = {
   shuffleCoords : document.createElement('input'),
   shufflePositions : document.createElement('input'),
   ropeStart: document.createElement('input'),
-  ropeSize: document.createElement('input'),
+  ropeSize: document.createElement('input')
 }
+for (const [key, value] of Object.entries(debugBoxes)) {
+  value.placeholder = key;
+}
+
+
 debugDiv.innerHTML = 'Debugging Output<br>';
-debugDiv.appendChild(debugBoxes.hexCoords);
-debugDiv.appendChild(debugBoxes.positionInfo);
-debugDiv.appendChild(document.createElement("br"));
-debugDiv.appendChild(debugBoxes.shuffleCoords);
-debugDiv.appendChild(debugBoxes.shufflePositions);
-debugDiv.appendChild(document.createElement("br"));
-debugDiv.appendChild(debugBoxes.ropeStart);
-debugDiv.appendChild(debugBoxes.ropeSize);
-
-debugBoxes.shuffleCoords.style.width = "50%";
-debugBoxes.shufflePositions.style.width = "50%";
-debugBoxes.ropeStart.style.width = "50%";
-debugBoxes.ropeSize.style.width = "50%";
-
+const table = new EasyTable();
+table.table.style.width = '100%';
+table.startNewRow().addCell(debugBoxes.hexCoords).addCell(debugBoxes.positionInfo);
+table.startNewRow().addCell(debugBoxes.shuffleCoords).addCell(debugBoxes.shufflePositions);
+table.startNewRow().addCell(debugBoxes.ropeStart).addCell(debugBoxes.ropeSize);
+debugDiv.appendChild(table.table);
 document.body.appendChild(debugDiv);
-
-
 
 const debugContainer = new PIXI.Container();
 app.stage.addChild(debugContainer);

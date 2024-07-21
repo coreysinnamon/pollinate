@@ -5,7 +5,7 @@ import { HexTile, TileType, TileColor, TileState } from "./HexTile"
 import { Board, HexLocation } from "./Board"
 import { game, Game, GameState } from "./Game"
 import { AutoRope } from "./AutoRope"
-import { trailTexture } from "./spriteLoader"
+import { trailTexture, solidTexture } from "./spriteLoader"
 import { swapTranslationTween } from "./animations"
 
 
@@ -19,7 +19,7 @@ class Shuffle extends AbstractShuffle {
   constructor(swapper : HexTile){
     super(swapper);
 
-    this.trail = new AutoRope(trailTexture);
+    this.trail = new AutoRope(solidTexture);
     this.board.container.addChild(this.trail.container);
     this.trail.container.zIndex = 1000;
     this.updateTrail();

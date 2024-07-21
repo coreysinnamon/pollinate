@@ -1,5 +1,3 @@
-import { PIXI } from "./index"
-import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
 import { HexTile, TileType, TileColor, TileState } from "./HexTile"
 
 console.log("Loaded: AbstractBoard");

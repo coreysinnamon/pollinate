@@ -6,7 +6,7 @@ import { Board } from "./Board"
 
 
 
-import { trailTexture } from "./spriteLoader"
+import { trailTexture, solidTexture } from "./spriteLoader"
 import { AutoRope } from "./AutoRope"
 
 
@@ -72,63 +72,40 @@ app.stage.sortableChildren = true;
 
 const game = new Game();
 
-//PIXI.settings.RENDER_OPTIONS.legacy = true;
-
-
-
-
-const pts = [];
-for (let x = 0; x<=28; x++)
-  pts.push(new PIXI.Point(30 + x*10, 500+50*Math.sin(x)))
-const rp = new PIXI.SimpleRope(trailTexture, pts, 1/10);
-debugContainer.addChild(rp);
-
-rp.roundPixels = true;
-
 debugContainer.zIndex = 5000;
-rp.size = 50;
-rp.start = 70;
-
-const graphics = new PIXI.Graphics();
-graphics.beginFill(0xDE3249);
-graphics.drawRect(25, 495, 10, 10);
-graphics.drawRect(165, 495, 10, 10);
-graphics.drawRect(305, 495, 10, 10);
-graphics.endFill();
-debugContainer.addChild(graphics);
 
 /*
 So! Seems like simplerope is sometimes batch rendered, and in that case
 the size and start options just straight-up do not work.
 */
 
-const ar = new AutoRope(trailTexture);
+const ar = new AutoRope(solidTexture);
 debugContainer.addChild(ar.container);
 debugContainer.zIndex = 5000;
 
 ar.pushControlPoint({ x: 30, y: 30 } );
-ar.pushControlPoint({ x: 400, y: 400 })
+ar.pushControlPoint({ x: 200, y: 400 });
+ar.pushControlPoint({ x: 100, y: 300 });
+
 ar.progressOnLastSegment(1);
-console.log(rp);
+ar.progressOnLastSegment(1);
 console.log(ar.rope);
 
 //debugBoxes.ropeSize.value = "" + ar.ropePoints.length + "   " + ar.ropeLength();
 
 // @ts-ignore
 console.log(ar.rope.geometry.indexBuffer.data.length);
-// @ts-ignore
-console.log(rp.geometry.indexBuffer.data.length);
 
-ar.rope.size = 100;
-ar.rope.start = 90;
+ar.rope.size = 0;
+ar.rope.start = 0;
 
 
 
-// debugBoxes.ropeStart.onchange = function(e: Event){
-//   ar.rope.start = parseInt(debugBoxes.ropeStart.value);
-// }
-// debugBoxes.ropeSize.onchange = function (e: Event) {
-//   ar.rope.size = parseInt(debugBoxes.ropeSize.value);
-// }
+debugBoxes.ropeStart.onchange = function(e: Event){
+  ar.rope.start = parseInt(debugBoxes.ropeStart.value);
+}
+debugBoxes.ropeSize.onchange = function (e: Event) {
+  ar.rope.size = parseInt(debugBoxes.ropeSize.value);
+}
 
 export { game, Game, GameState, AssetsToLoad }

@@ -7,5 +7,4 @@ import './spriteLoader'
 import './Board'
 import './Shuffle'
 
-
 export { PIXI };

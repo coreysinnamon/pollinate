@@ -1,4 +1,4 @@
-import { PIXI } from "./index"
+import * as PIXI from 'pixi.js'
 import { game, GameState, AssetsToLoad } from "./Game"
 import { app, DEBUG, debugBoxes, debugContainer } from "./makeStage"
 import { HexTile, TileType, TileColor, TileState } from "./HexTile"
@@ -14,18 +14,14 @@ const hexTextures : any = {};
 
 const miscTextures = {};
 
-
-
-
-const loader = PIXI.Loader.shared;
-const assetsFilePath = "./src/assets/";
+const assetsFilePath = "./assets/";
 const hexSpriteSheetPath = assetsFilePath+"hexSpriteSheet.json";
 
-loader.add(hexSpriteSheetPath).load(populateTextureDirectory);
+PIXI.Assets.load(hexSpriteSheetPath).then(populateTextureDirectory);
 
 function populateTextureDirectory() {
   // get a reference to the sprite sheet we've just loaded:
-  const sheet = loader.resources[hexSpriteSheetPath];
+  const sheet = PIXI.Assets.get(hexSpriteSheetPath);
   const t = sheet.textures;
   
 
@@ -81,6 +77,7 @@ function populateTextureDirectory() {
 }
 
 const trailTexture = PIXI.Texture.from(assetsFilePath+'dotted-line.png');
-//const trailTexture = PIXI.Texture.from(assetsFilePath+'arrow-line.png');
+// const trailTexture = PIXI.Texture.from(assetsFilePath+'arrow-line.png');
+const solidTexture = PIXI.Texture.from(assetsFilePath+'solid-line.png');
 
-export { trailTexture, hexTextures };
+export { trailTexture, solidTexture, hexTextures };

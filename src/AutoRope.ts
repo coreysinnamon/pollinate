@@ -244,7 +244,7 @@ class AutoRope{
       return;
     }
 
-    debugBoxes.ropeSize.value = "" + this.segmentBeingRemovedFrom;
+    // debugBoxes.ropeSize.value = "" + this.segmentBeingRemovedFrom;
     const oldProgress = this.firstSegmentProgress;
     let leftover = 0;
     if (this.firstSegmentProgress + dp * this.segmentSize[this.segmentBeingRemovedFrom] > this.segmentSize[this.segmentBeingRemovedFrom]){

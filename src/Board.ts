@@ -197,7 +197,7 @@ class Board extends AbstractBoard {
     }
 
     const graphics = new PIXI.Graphics();
-    graphics.lineStyle(3, 0xFF00000);
+    graphics.lineStyle(3, 0xFF0000);
     graphics.alpha = 0.5;
     for (let i = 0; i < this.gridWidth; i++){
       for (let j = 0; j < this.gridHeight; j++){
@@ -218,13 +218,8 @@ class Board extends AbstractBoard {
   // getActualWidth //
   // Returns the width of the hexTiles in the container in boardspace coordinates.
   getActualWidth(){
-    if (this.gridHeight == 1){
-      const row = 0;
-    }else{
-      const row = 1;
-    }
-    const location = this.getTileCenterCoordinates(this.gridWidth-1, 1);
-
+    const row = this.gridHeight == 1 ? 0 : 1;
+    const location = this.getTileCenterCoordinates(this.gridWidth-1, row);
     return location.x + HexTile.getSpriteColumnWidth()/2;
   }
 
